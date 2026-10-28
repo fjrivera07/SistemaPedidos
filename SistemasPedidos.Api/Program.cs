@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using SistemaPedidos.Api.Services;
@@ -20,21 +21,57 @@ builder.Services.AddControllers();
 //builder.Services.AddOpenApi();
 
 builder.Services.AddEndpointsApiExplorer();
+
+var tenantId = builder.Configuration["AzureAd:TenantId"];
+
+var apiScope =
+    "api://d33f9f16-f4b0-4575-9299-75be4c54bdbf/Pedidos.Read";
+
 builder.Services.AddSwaggerGen(options =>
 {
+    // JWT local
     options.AddSecurityDefinition("Bearer",
         new OpenApiSecurityScheme
         {
             Type = SecuritySchemeType.Http,
             Scheme = "bearer",
-            BearerFormat = "JWT",
-            Description = "Introduce el token JWT."
+            BearerFormat = "JWT"
         });
 
     options.AddSecurityRequirement(document =>
         new OpenApiSecurityRequirement
         {
             [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+        });
+
+    // Microsoft Entra ID
+    options.AddSecurityDefinition("EntraID",
+        new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.OAuth2,
+            Flows = new OpenApiOAuthFlows
+            {
+                AuthorizationCode = new OpenApiOAuthFlow
+                {
+                    AuthorizationUrl = new Uri(
+                        $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize"),
+
+                    TokenUrl = new Uri(
+                        $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token"),
+
+                    Scopes = new Dictionary<string, string>
+                    {
+                        [apiScope] = "Consultar pedidos"
+                    }
+                }
+            }
+        });
+
+    options.AddSecurityRequirement(document =>
+        new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("EntraID", document)] =
+                [apiScope]
         });
 });
 
@@ -82,6 +119,12 @@ builder.Services
             };
     });
 
+builder.Services
+    .AddAuthentication()
+    .AddMicrosoftIdentityWebApi(
+        builder.Configuration.GetSection("AzureAd"),
+        jwtBearerScheme: "EntraID");
+
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
@@ -91,7 +134,21 @@ if (app.Environment.IsDevelopment())
 {
     //app.MapOpenApi();
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.OAuthClientId(
+            "83d76911-63b0-4d02-b202-ba87946d6f4f");
+
+        options.OAuthAppName("SistemaPedidos.Client");
+
+        options.OAuthUsePkce();
+
+        options.OAuthScopes(
+            "api://d33f9f16-f4b0-4575-9299-75be4c54bdbf/Pedidos.Read");
+
+        options.OAuth2RedirectUrl(
+            "https://localhost:7064/swagger/oauth2-redirect.html");
+    });
 }
 
 app.UseHttpsRedirection();

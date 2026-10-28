@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web.Resource;
 using SistemaPedidos.Application.Commands.CancelarPedido;
 using SistemaPedidos.Application.Commands.CrearPedido;
 using SistemaPedidos.Application.Queries.ObtenerPedido;
@@ -22,7 +23,8 @@ namespace SistemaPedidos.Api.Controllers
             this.cancelarHandler = cancelarHandler;
         }
 
-        [Authorize(Roles = "Usuario,Administrador")]
+        [Authorize(AuthenticationSchemes = "EntraID")]
+        [RequiredScope("Pedidos.Write")]
         [HttpPost]
         public async Task<IActionResult> Crear([FromBody] CrearPedidoCommand command)
         {
@@ -31,7 +33,8 @@ namespace SistemaPedidos.Api.Controllers
             return Ok(new { Id = id });
         }
 
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "EntraID")]
+        [RequiredScope("Pedidos.Read")]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> Obtener(int id)
         {
@@ -44,8 +47,8 @@ namespace SistemaPedidos.Api.Controllers
             return Ok(pedidoDto);
         }
 
-        [Authorize(Roles = "Administrador")]
-
+        [Authorize(AuthenticationSchemes = "EntraID")]
+        [RequiredScope("Pedidos.Write")]
         [HttpPut("{id:int}/cancelar")]
         public async Task<IActionResult> Cancelar(int id)
         {
